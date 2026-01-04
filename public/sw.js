@@ -1,4 +1,4 @@
-const CACHE_NAME = 'gmp-labwork-v0.6.1';
+const CACHE_NAME = 'gmp-labwork-v0.6.2';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
