@@ -109,7 +109,7 @@ export function DataTable<T extends { id: number | string; archived?: boolean }>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
               {filtered.map(item => (
-                <tr key={String(item.id)} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 ${item.archived ? 'opacity-60' : ''}`}>
+                <tr key={String(item.id)} className={`hover:bg-gray-50 dark:hover:bg-gray-700/50 cursor-pointer touch-manipulation active:bg-gray-100 dark:active:bg-gray-600 ${item.archived ? 'opacity-60' : ''}`} onClick={() => onEdit(item)}>
                   {columns.map(col => (
                     <td key={String(col.key)} className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200">
                       {col.render ? col.render(item) : String((item as Record<string, unknown>)[col.key as string] ?? '')}

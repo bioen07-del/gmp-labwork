@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase, Task, Container, Profile } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { DataTable } from '@/components/DataTable';
 import { Modal, FormField, Input, Select, Button } from '@/components/Modal';
-import { Play } from 'lucide-react';
+import { Play, X } from 'lucide-react';
 
 const statuses = ['Pending', 'InProgress', 'Completed', 'Cancelled'];
 const taskTypes = ['Observation', 'Feeding', 'Passage', 'QC', 'Other'];
@@ -22,6 +22,8 @@ const statusColors: Record<string, string> = {
 export function TasksPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const workflowFilter = searchParams.get('workflow');
   const [data, setData] = useState<Task[]>([]);
   const [containers, setContainers] = useState<Container[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -55,6 +57,7 @@ export function TasksPage() {
   const filtered = data.filter(t => {
     if (statusFilter && t.status !== statusFilter) return false;
     if (priorityFilter && t.priority !== priorityFilter) return false;
+    if (workflowFilter && t.workflow_instance_id?.toString() !== workflowFilter) return false;
     return true;
   });
 
@@ -124,7 +127,13 @@ export function TasksPage() {
     <>
       <div className="mb-4">
         <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">Задачи</h1>
-        <div className="flex gap-4 flex-wrap">
+        <div className="flex gap-4 flex-wrap items-center">
+          {workflowFilter && (
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 rounded-lg text-sm">
+              <span>Workflow #{workflowFilter}</span>
+              <button onClick={() => setSearchParams({})} className="hover:text-blue-900"><X size={14} /></button>
+            </div>
+          )}
           <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-40">
             <option value="">Все статусы</option>
             {statuses.map(s => <option key={s} value={s}>{statusLabels[s]}</option>)}

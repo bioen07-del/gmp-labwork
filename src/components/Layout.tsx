@@ -93,7 +93,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const isActive = (path: string) => location.pathname === path;
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex">
+    <div className="min-h-screen h-screen bg-gray-50 dark:bg-gray-900 flex overflow-hidden">
       {/* Sidebar */}
       <aside className={`${sidebarOpen ? 'w-64' : 'w-16'} bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 transition-all duration-300 flex flex-col`}>
         <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-gray-700">
@@ -175,7 +175,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main content */}
-      <main className="flex-1 overflow-auto">
+      <main className="flex-1 flex flex-col min-h-0 overflow-hidden">
         {/* Header bar with scanner and status */}
         <div className="h-12 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 flex items-center justify-end px-4 gap-3">
           {draftsCount > 0 && (
@@ -212,7 +212,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
             </div>
           </Tooltip>
         </div>
-        <div className="p-6">{children}</div>
+        <div className="flex-1 overflow-auto overscroll-contain p-4 md:p-6 -webkit-overflow-scrolling-touch">{children}</div>
       </main>
 
       {/* Barcode Scanner Modal */}

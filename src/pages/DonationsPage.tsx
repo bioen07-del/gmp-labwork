@@ -1,14 +1,18 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase, Donation, Donor } from '@/lib/supabase';
 import { DataTable } from '@/components/DataTable';
 import { Modal, FormField, Input, Select, Button } from '@/components/Modal';
+import { ListTodo, GitBranch } from 'lucide-react';
 
 const materialTypes = ['blood', 'bone_marrow', 'cord_blood', 'tissue', 'other'];
 const conditions = ['good', 'acceptable', 'poor'];
 
 export function DonationsPage() {
+  const navigate = useNavigate();
   const [data, setData] = useState<Donation[]>([]);
   const [donors, setDonors] = useState<Donor[]>([]);
+  const [workflows, setWorkflows] = useState<Record<number, { id: number; status: string; taskCount: number }>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
@@ -22,13 +26,26 @@ export function DonationsPage() {
 
   const load = async () => {
     setLoading(true);
-    const [don, dnr] = await Promise.all([
+    const [don, dnr, wf] = await Promise.all([
       supabase.from('donations').select('*, donor:donors(*)').order('id', { ascending: false }),
-      supabase.from('donors').select('*').eq('archived', false)
+      supabase.from('donors').select('*').eq('archived', false),
+      supabase.from('workflow_instances').select('id, donation_id, status')
     ]);
     if (don.error) setError(don.error.message);
     else setData(don.data || []);
     setDonors(dnr.data || []);
+    
+    // Загружаем количество задач для каждого workflow
+    if (wf.data) {
+      const wfMap: Record<number, { id: number; status: string; taskCount: number }> = {};
+      for (const w of wf.data) {
+        if (w.donation_id) {
+          const { count } = await supabase.from('tasks').select('*', { count: 'exact', head: true }).eq('workflow_instance_id', w.id);
+          wfMap[w.donation_id] = { id: w.id, status: w.status, taskCount: count || 0 };
+        }
+      }
+      setWorkflows(wfMap);
+    }
     setLoading(false);
   };
 
@@ -113,6 +130,19 @@ export function DonationsPage() {
           { key: 'donation_datetime', label: 'Дата/время', render: (i) => new Date(i.donation_datetime).toLocaleString('ru-RU') },
           { key: 'material_type', label: 'Тип материала' },
           { key: 'received_condition', label: 'Состояние' },
+          { key: 'workflow', label: 'Процесс', render: (i) => {
+            const wf = workflows[i.id];
+            if (!wf) return <span className="text-gray-400">—</span>;
+            return (
+              <button
+                onClick={(e) => { e.stopPropagation(); navigate(`/tasks?workflow=${wf.id}`); }}
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded hover:bg-blue-200 dark:hover:bg-blue-800/50"
+              >
+                <ListTodo size={12} />
+                {wf.taskCount} задач
+              </button>
+            );
+          }},
         ]}
         searchKeys={['donation_code', 'material_type']}
         onAdd={openAdd}
