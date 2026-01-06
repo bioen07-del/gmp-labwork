@@ -1,11 +1,48 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase, Task, TaskTarget, Container } from '@/lib/supabase';
-import { Loader2, ArrowLeft, Play, Save, CheckCircle, XCircle, AlertTriangle } from 'lucide-react';
+import { Loader2, ArrowLeft, Play, Save, CheckCircle, XCircle, AlertTriangle, ListChecks } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
 type FinishMode = 'continue' | 'close' | 'cancel' | null;
+
+type Substep = {
+  code: string;
+  label: string;
+  completed: boolean;
+  completedAt: string | null;
+  notes: string;
+};
+
+const defaultSubsteps: Record<string, Substep[]> = {
+  Feed: [
+    { code: 'A1', label: 'Подготовка ламинара', completed: false, completedAt: null, notes: '' },
+    { code: 'A2', label: 'Подготовка сред', completed: false, completedAt: null, notes: '' },
+    { code: 'A3', label: 'Кормление культуры', completed: false, completedAt: null, notes: '' },
+  ],
+  Passage: [
+    { code: 'A1', label: 'Подготовка ламинара', completed: false, completedAt: null, notes: '' },
+    { code: 'A2', label: 'Подготовка сред и реагентов', completed: false, completedAt: null, notes: '' },
+    { code: 'A3', label: 'Открепление клеток', completed: false, completedAt: null, notes: '' },
+    { code: 'A4', label: 'Подсчёт и пересев', completed: false, completedAt: null, notes: '' },
+  ],
+  Freeze: [
+    { code: 'A1', label: 'Подготовка ламинара', completed: false, completedAt: null, notes: '' },
+    { code: 'A2', label: 'Подготовка криосред', completed: false, completedAt: null, notes: '' },
+    { code: 'A3', label: 'Сбор и подсчёт клеток', completed: false, completedAt: null, notes: '' },
+    { code: 'A4', label: 'Распределение по виалам', completed: false, completedAt: null, notes: '' },
+    { code: 'A5', label: 'Заморозка', completed: false, completedAt: null, notes: '' },
+  ],
+  Inspect: [
+    { code: 'A1', label: 'Визуальный осмотр', completed: false, completedAt: null, notes: '' },
+    { code: 'A2', label: 'Оценка конфлюентности', completed: false, completedAt: null, notes: '' },
+  ],
+  Dispose: [
+    { code: 'A1', label: 'Деконтаминация', completed: false, completedAt: null, notes: '' },
+    { code: 'A2', label: 'Утилизация', completed: false, completedAt: null, notes: '' },
+  ],
+};
 
 export function OperatorTaskPage() {
   const { id: taskId } = useParams<{ id: string }>();
@@ -16,6 +53,7 @@ export function OperatorTaskPage() {
   const [targets, setTargets] = useState<(TaskTarget & { container: Container })[]>([]);
   const [finishMode, setFinishMode] = useState<FinishMode>(null);
   const [skipReason, setSkipReason] = useState('');
+  const [substeps, setSubsteps] = useState<Substep[]>([]);
 
   useEffect(() => {
     if (taskId) loadData();
@@ -33,6 +71,14 @@ export function OperatorTaskPage() {
 
     if (taskData) {
       setTask(taskData);
+
+      // Initialize substeps from task data or defaults
+      const savedSubsteps = taskData.description ? JSON.parse(taskData.description) as Substep[] : null;
+      if (savedSubsteps && Array.isArray(savedSubsteps)) {
+        setSubsteps(savedSubsteps);
+      } else if (defaultSubsteps[taskData.task_type]) {
+        setSubsteps(defaultSubsteps[taskData.task_type]);
+      }
 
       // Load targets with containers
       const { data: targetsData } = await supabase
@@ -56,6 +102,21 @@ export function OperatorTaskPage() {
       .eq('id', task.id);
 
     setTask({ ...task, status: 'InProgress' });
+  };
+
+  const toggleSubstep = async (index: number) => {
+    const updated = substeps.map((s, i) => 
+      i === index 
+        ? { ...s, completed: !s.completed, completedAt: !s.completed ? new Date().toISOString() : null }
+        : s
+    );
+    setSubsteps(updated);
+    
+    // Save to task description
+    await supabase
+      .from('tasks')
+      .update({ description: JSON.stringify(updated) })
+      .eq('id', task?.id);
   };
 
   const toggleTarget = async (target: TaskTarget & { container: Container }) => {
@@ -209,6 +270,47 @@ export function OperatorTaskPage() {
           )}
         </div>
       </div>
+
+      {/* Substeps Checklist */}
+      {substeps.length > 0 && task.status !== 'Pending' && (
+        <div className="bg-white dark:bg-gray-800 rounded-xl shadow p-5 border border-gray-100 dark:border-gray-700">
+          <h3 className="font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+            <ListChecks size={20} className="text-blue-500" />
+            Этапы подготовки
+          </h3>
+          <div className="space-y-2">
+            {substeps.map((step, idx) => (
+              <div 
+                key={step.code}
+                onClick={() => toggleSubstep(idx)}
+                className={`flex items-center gap-4 p-3 rounded-lg cursor-pointer transition-colors ${
+                  step.completed 
+                    ? 'bg-green-50 dark:bg-green-900/20' 
+                    : 'bg-gray-50 dark:bg-gray-700/50 hover:bg-gray-100 dark:hover:bg-gray-700'
+                }`}
+              >
+                <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
+                  step.completed 
+                    ? 'bg-green-500 text-white' 
+                    : 'bg-gray-200 dark:bg-gray-600 text-gray-600 dark:text-gray-300'
+                }`}>
+                  {step.completed ? <CheckCircle size={18} /> : step.code}
+                </div>
+                <div className="flex-1">
+                  <span className={`font-medium ${step.completed ? 'text-green-700 dark:text-green-400 line-through' : 'text-gray-800 dark:text-white'}`}>
+                    {step.label}
+                  </span>
+                  {step.completedAt && (
+                    <span className="ml-2 text-xs text-gray-500">
+                      {format(new Date(step.completedAt), 'HH:mm')}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Start Button */}
       {task.status === 'Pending' && (
