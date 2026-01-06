@@ -71,12 +71,12 @@ export function ReportsPage() {
           
           const passed = results?.filter(r => r.status === 'Pass').length || 0;
           const failed = results?.filter(r => r.status === 'Fail').length || 0;
-          doc.text(`Pass: ${passed}, Fail: ${failed}`, 20, 45);
+          doc.text(`Projdeno: ${passed}, Ne projdeno: ${failed}`, 20, 45);
           
           let y = 60;
           (results || []).forEach((r, idx) => {
             if (y > 270) { doc.addPage(); y = 20; }
-            doc.text(`${idx + 1}. ${r.test_definition?.code || 'Test'}: ${r.status}`, 20, y);
+            doc.text(`${idx + 1}. ${r.test_definition?.code || 'Test'}: ${r.status === 'Pass' ? 'Projden' : r.status === 'Fail' ? 'Ne projden' : 'Ozhidaet'}`, 20, y);
             y += 6;
           });
           doc.save('qc_report.pdf');

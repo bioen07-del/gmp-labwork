@@ -9,6 +9,9 @@ const entityTypes = [
   { value: 'release', label: 'Выдача' },
 ];
 const resultStatuses = ['Pending', 'Pass', 'Fail'];
+const resultStatusLabels: Record<string, string> = {
+  Pending: 'Ожидает', Pass: 'Пройден', Fail: 'Не пройден'
+};
 
 export function QcResultsPage() {
   const { canEdit } = useAuth();
@@ -170,7 +173,7 @@ export function QcResultsPage() {
         </FormField>
         <FormField label="Статус" required>
           <Select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
-            {resultStatuses.map(s => <option key={s} value={s}>{s}</option>)}
+            {resultStatuses.map(s => <option key={s} value={s}>{resultStatusLabels[s]}</option>)}
           </Select>
         </FormField>
         <FormField label="Числовое значение">

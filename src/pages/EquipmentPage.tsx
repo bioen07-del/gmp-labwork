@@ -5,7 +5,14 @@ import { DataTable } from '@/components/DataTable';
 import { Modal, FormField, Input, Select, Button } from '@/components/Modal';
 
 const equipmentTypes = ['incubator', 'centrifuge', 'microscope', 'laminar', 'fridge', 'freezer', 'other'];
+const equipmentTypeLabels: Record<string, string> = {
+  incubator: 'Инкубатор', centrifuge: 'Центрифуга', microscope: 'Микроскоп',
+  laminar: 'Ламинар', fridge: 'Холодильник', freezer: 'Морозильник', other: 'Другое'
+};
 const statuses = ['active', 'maintenance', 'decommissioned'];
+const statusLabels: Record<string, string> = {
+  active: 'Активен', maintenance: 'На обслуживании', decommissioned: 'Списан'
+};
 
 export function EquipmentPage() {
   const { canEdit } = useAuth();
@@ -92,8 +99,8 @@ export function EquipmentPage() {
         columns={[
           { key: 'equipment_code', label: 'Код' },
           { key: 'name_ru', label: 'Название' },
-          { key: 'equipment_type', label: 'Тип' },
-          { key: 'status', label: 'Статус' },
+          { key: 'equipment_type', label: 'Тип', render: (i) => equipmentTypeLabels[i.equipment_type] || i.equipment_type },
+          { key: 'status', label: 'Статус', render: (i) => statusLabels[i.status] || i.status },
           { key: 'location_id', label: 'Локация', render: (i) => getLocationName(i.location_id) },
         ]}
         searchKeys={['equipment_code', 'name_ru', 'equipment_type']}
@@ -112,12 +119,12 @@ export function EquipmentPage() {
         </FormField>
         <FormField label="Тип" required>
           <Select value={form.equipment_type} onChange={e => setForm({ ...form, equipment_type: e.target.value })}>
-            {equipmentTypes.map(t => <option key={t} value={t}>{t}</option>)}
+            {equipmentTypes.map(t => <option key={t} value={t}>{equipmentTypeLabels[t]}</option>)}
           </Select>
         </FormField>
         <FormField label="Статус" required>
           <Select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
-            {statuses.map(s => <option key={s} value={s}>{s}</option>)}
+            {statuses.map(s => <option key={s} value={s}>{statusLabels[s]}</option>)}
           </Select>
         </FormField>
         <FormField label="Локация">
