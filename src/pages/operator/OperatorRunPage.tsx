@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { supabase, WorkflowInstance, Container, Task, Donation } from '@/lib/supabase';
-import { Loader2, ArrowLeft, Eye, Droplets, GitBranch, Snowflake, Trash2, ChevronRight, Plus } from 'lucide-react';
+import { Loader2, ArrowLeft, Eye, Droplets, GitBranch, Snowflake, Trash2, ChevronRight, Plus, AlertTriangle, X } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
@@ -48,6 +48,8 @@ export function OperatorRunPage() {
   const [containers, setContainers] = useState<Container[]>([]);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [showOnlyActive, setShowOnlyActive] = useState(true);
+  const [hasMCB, setHasMCB] = useState(false);
+  const [qcModal, setQcModal] = useState<{ show: boolean; action: ActionType | null; missingQC: Container[] }>({ show: false, action: null, missingQC: [] });
 
   useEffect(() => {
     if (runId) loadData();
@@ -100,18 +102,44 @@ export function OperatorRunPage() {
         .in('status', ['Pending', 'InProgress'])
         .order('due_date', { ascending: true });
       setTasks(tasksData || []);
+
+      // Check if MCB exists for this run (for WCB validation)
+      const { data: mcbData } = await supabase
+        .from('bank_batches')
+        .select('id')
+        .eq('source_material_id', runData.root_material_id)
+        .eq('bank_type', 'MCB')
+        .limit(1);
+      setHasMCB((mcbData?.length || 0) > 0);
     }
 
     setLoading(false);
   };
 
-  const createGroupTask = async (action: ActionType) => {
+  const createGroupTask = async (action: ActionType, skipQcCheck = false) => {
     if (!run) return;
     
     const activeContainers = containers.filter(c => c.status === 'Active' && !c.archived);
     if (activeContainers.length === 0) {
       alert('Нет активных контейнеров');
       return;
+    }
+
+    // Validation: WCB only from MCB
+    if (action === 'Freeze' && run.stage === 'WCB_Creation' && !hasMCB) {
+      alert('Невозможно создать WCB: сначала необходимо создать MCB');
+      return;
+    }
+
+    // QC Gate: Check viability + total_cells before Freeze
+    if (action === 'Freeze' && !skipQcCheck) {
+      const missingQC = activeContainers.filter(c => 
+        c.viability_percent === null || c.total_cells === null
+      );
+      if (missingQC.length > 0) {
+        setQcModal({ show: true, action, missingQC });
+        return;
+      }
     }
 
     // Create group task
@@ -318,6 +346,51 @@ export function OperatorRunPage() {
           </div>
         )}
       </div>
+
+      {/* QC Validation Modal */}
+      {qcModal.show && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl max-w-lg w-full p-6">
+            <div className="flex items-center gap-3 mb-4">
+              <AlertTriangle size={28} className="text-orange-500" />
+              <h3 className="text-xl font-bold text-gray-800 dark:text-white">
+                QC данные отсутствуют
+              </h3>
+            </div>
+            <p className="text-gray-600 dark:text-gray-400 mb-4">
+              Для заморозки требуется заполнить <strong>Viability</strong> и <strong>Total Cells</strong> у контейнеров:
+            </p>
+            <div className="max-h-48 overflow-y-auto mb-4 bg-gray-50 dark:bg-gray-700 rounded-lg p-3">
+              {qcModal.missingQC.map(c => (
+                <div key={c.id} className="flex items-center justify-between py-2 border-b border-gray-200 dark:border-gray-600 last:border-0">
+                  <span className="font-medium text-gray-800 dark:text-white">{c.container_code}</span>
+                  <div className="text-sm text-gray-500 dark:text-gray-400">
+                    {c.viability_percent === null && <span className="text-red-500 mr-2">Viability ❌</span>}
+                    {c.total_cells === null && <span className="text-red-500">Cells ❌</span>}
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setQcModal({ show: false, action: null, missingQC: [] })}
+                className="flex-1 py-3 bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-white rounded-xl hover:bg-gray-300 dark:hover:bg-gray-600 font-medium"
+              >
+                Отмена
+              </button>
+              <button
+                onClick={() => {
+                  setQcModal({ show: false, action: null, missingQC: [] });
+                  if (qcModal.action) createGroupTask(qcModal.action, true);
+                }}
+                className="flex-1 py-3 bg-orange-600 text-white rounded-xl hover:bg-orange-700 font-medium"
+              >
+                Продолжить без QC
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
