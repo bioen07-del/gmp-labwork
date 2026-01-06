@@ -113,7 +113,7 @@ export function DonorsPage() {
         onAdd={openAdd}
         onEdit={openEdit}
         onArchive={handleArchive}
-        canEdit={canEdit()}
+        canEdit={true}
       />
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Донор' : 'Создание донора'}>
