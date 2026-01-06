@@ -17,17 +17,30 @@ import {
 const APP_VERSION = __APP_VERSION__;
 
 const menuItems = [
-  { path: '/', icon: LayoutDashboard, label: 'Дашборд' },
+  // Основная работа
   { path: '/operator/today', icon: Play, label: 'Оператор' },
+  { path: '/', icon: LayoutDashboard, label: 'Дашборд' },
   { path: '/tasks', icon: ListTodo, label: 'Задачи' },
-  { path: '/deviations', icon: AlertTriangle, label: 'Отклонения' },
-  { path: '/donations', icon: Droplet, label: 'Донации' },
-  { path: '/containers', icon: Package, label: 'Контейнеры' },
-  { path: '/storage-map', icon: Grid3X3, label: 'Адресное хранение' },
-  { path: '/processes', icon: GitBranch, label: 'Процессы' },
-  { path: '/banks', icon: Archive, label: 'Банки' },
-  { path: '/releases', icon: Send, label: 'Выдача' },
+  
+  // Workflow: Донор → Донация → Контейнеры → Банки → Выдача
+  {
+    label: 'Производство',
+    icon: GitBranch,
+    children: [
+      { path: '/donors', icon: Users, label: '1. Доноры' },
+      { path: '/donations', icon: Droplet, label: '2. Донации' },
+      { path: '/containers', icon: Package, label: '3. Контейнеры' },
+      { path: '/banks', icon: Archive, label: '4. Банки (MCB/WCB)' },
+      { path: '/releases', icon: Send, label: '5. Выдача' },
+    ]
+  },
+  
+  // Контроль
   { path: '/qc-results', icon: TestTube, label: 'QC' },
+  { path: '/deviations', icon: AlertTriangle, label: 'Отклонения' },
+  { path: '/storage-map', icon: Grid3X3, label: 'Адресное хранение' },
+  
+  // Склад
   {
     label: 'Склад',
     icon: Beaker,
@@ -37,6 +50,8 @@ const menuItems = [
       { path: '/media', icon: Droplet, label: 'Среды' },
     ]
   },
+  
+  // Справочники
   {
     label: 'Справочники',
     icon: Database,
@@ -47,6 +62,8 @@ const menuItems = [
       { path: '/locations', icon: MapPin, label: 'Локации' },
     ]
   },
+  
+  // Администрирование
   {
     label: 'Администрирование',
     icon: Settings,
@@ -54,7 +71,6 @@ const menuItems = [
       { path: '/process-builder', icon: GitBranch, label: 'Конструктор процессов' },
     ]
   },
-  { path: '/donors', icon: Users, label: 'Доноры' },
   { path: '/reports', icon: FileText, label: 'Отчеты' },
 ];
 
