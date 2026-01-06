@@ -22,14 +22,14 @@ const menuItems = [
   { path: '/', icon: LayoutDashboard, label: 'Дашборд' },
   { path: '/tasks', icon: ListTodo, label: 'Задачи' },
   
-  // Workflow: Донор → Донация → Контейнеры → Банки → Выдача
+  // Workflow: Донор → Донация → Культуры → Банки → Выдача
   {
     label: 'Производство',
     icon: GitBranch,
     children: [
       { path: '/donors', icon: Users, label: '1. Доноры' },
       { path: '/donations', icon: Droplet, label: '2. Донации' },
-      { path: '/containers', icon: Package, label: '3. Контейнеры' },
+      { path: '/containers', icon: Package, label: '3. Культуры' },
       { path: '/banks', icon: Archive, label: '4. Банки (MCB/WCB)' },
       { path: '/releases', icon: Send, label: '5. Выдача' },
     ]

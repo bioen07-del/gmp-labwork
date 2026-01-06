@@ -294,7 +294,7 @@ export function OperatorRunPage() {
       <div>
         <div className="flex items-center justify-between mb-3">
           <h3 className="font-semibold text-gray-800 dark:text-white">
-            Контейнеры ({filteredContainers.length})
+            Культуры ({filteredContainers.length})
           </h3>
           <label className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
             <input

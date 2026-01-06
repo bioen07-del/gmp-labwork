@@ -154,7 +154,7 @@ export function ContainersPage() {
   return (
     <>
       <div className="mb-4">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">Контейнеры</h1>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white mb-4">Культуры</h1>
         <div className="flex gap-4 flex-wrap">
           <Select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="w-40">
             <option value="">Все статусы</option>
