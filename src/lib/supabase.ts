@@ -200,6 +200,7 @@ export type WorkflowInstance = {
   id: number;
   process_version_id: number;
   root_material_id: number | null;
+  donation_id: number | null;
   status: string;
   instance_params_json: Record<string, unknown> | null;
   // Operator mode fields

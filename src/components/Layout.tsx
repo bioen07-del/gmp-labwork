@@ -38,7 +38,6 @@ const menuItems = [
   // Контроль
   { path: '/qc-results', icon: TestTube, label: 'QC' },
   { path: '/deviations', icon: AlertTriangle, label: 'Отклонения' },
-  { path: '/storage-map', icon: Grid3X3, label: 'Адресное хранение' },
   
   // Склад
   {
@@ -60,6 +59,7 @@ const menuItems = [
       { path: '/container-types', icon: Box, label: 'Типы контейнеров' },
       { path: '/equipment', icon: Wrench, label: 'Оборудование' },
       { path: '/locations', icon: MapPin, label: 'Локации' },
+      { path: '/storage-map', icon: Grid3X3, label: 'Адресное хранение' },
     ]
   },
   

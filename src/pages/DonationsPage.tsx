@@ -98,11 +98,39 @@ export function DonationsPage() {
       const { data: codeData } = await supabase.rpc('generate_donation_code', { p_donor_id: parseInt(form.donor_id) });
       const newCode = codeData as string;
       
-      const { error } = await supabase.from('donations').insert({ ...payload, donation_code: newCode });
+      // Создаём донацию
+      const { data: newDonation, error } = await supabase
+        .from('donations')
+        .insert({ ...payload, donation_code: newCode })
+        .select()
+        .single();
       
       if (error) {
         setError(error.message);
-      } else {
+      } else if (newDonation) {
+        // Создаём материал
+        const { data: material } = await supabase
+          .from('materials')
+          .insert({
+            material_code: `M-${newCode}`,
+            donation_id: newDonation.id,
+            status: 'Active'
+          })
+          .select()
+          .single();
+        
+        // Создаём Run (workflow_instance)
+        if (material) {
+          await supabase.from('workflow_instances').insert({
+            process_version_id: 1, // default process
+            root_material_id: material.id,
+            donation_id: newDonation.id,
+            status: 'Active',
+            stage: 'Donation',
+            run_name: `Run ${newCode}`
+          });
+        }
+        
         setGeneratedCode(newCode);
       }
     }
