@@ -95,7 +95,7 @@ export function OperatorTodayPage() {
         .single();
       
       if (workflow) {
-        navigate(`/operator/runs/${workflow.id}`);
+        navigate(`/operator/run/${workflow.id}`);
         return;
       }
     }
@@ -178,7 +178,7 @@ export function OperatorTodayPage() {
             {runs.map(run => (
               <div
                 key={run.id}
-                onClick={() => navigate(`/operator/runs/${run.id}`)}
+                onClick={() => navigate(`/operator/run/${run.id}`)}
                 className="bg-white dark:bg-gray-800 rounded-xl shadow p-5 cursor-pointer hover:shadow-lg transition-shadow border border-gray-100 dark:border-gray-700 flex items-center justify-between"
               >
                 <div className="flex-1">
@@ -217,7 +217,7 @@ export function OperatorTodayPage() {
             {tasks.map(task => (
               <div
                 key={task.id}
-                onClick={() => navigate(`/operator/tasks/${task.id}`)}
+                onClick={() => navigate(`/operator/task/${task.id}`)}
                 className="bg-white dark:bg-gray-800 rounded-xl shadow p-5 cursor-pointer hover:shadow-lg transition-shadow border border-gray-100 dark:border-gray-700"
               >
                 <div className="flex items-center justify-between">

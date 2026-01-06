@@ -40,7 +40,7 @@ const actionConfig: Record<ActionType, { icon: React.ReactNode; label: string; c
 };
 
 export function OperatorRunPage() {
-  const { runId } = useParams<{ runId: string }>();
+  const { id: runId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [run, setRun] = useState<WorkflowInstance | null>(null);
@@ -146,7 +146,7 @@ export function OperatorRunPage() {
     await supabase.from('task_targets').insert(targets);
 
     // Navigate to task
-    navigate(`/operator/tasks/${task.id}`);
+    navigate(`/operator/task/${task.id}`);
   };
 
   const filteredContainers = showOnlyActive 
@@ -242,7 +242,7 @@ export function OperatorRunPage() {
             {tasks.map(task => (
               <div
                 key={task.id}
-                onClick={() => navigate(`/operator/tasks/${task.id}`)}
+                onClick={() => navigate(`/operator/task/${task.id}`)}
                 className="bg-white dark:bg-gray-800 rounded-lg shadow p-4 cursor-pointer hover:shadow-md flex items-center justify-between border border-gray-100 dark:border-gray-700"
               >
                 <div>

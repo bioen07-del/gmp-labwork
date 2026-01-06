@@ -8,7 +8,7 @@ import { ru } from 'date-fns/locale';
 type FinishMode = 'continue' | 'close' | 'cancel' | null;
 
 export function OperatorTaskPage() {
-  const { taskId } = useParams<{ taskId: string }>();
+  const { id: taskId } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
