@@ -42,6 +42,7 @@ export type Equipment = {
   location_id: number | null;
   inventory_number: string | null;
   catalog_number: string | null;
+  room: string | null;
   archived: boolean;
 };
 
@@ -60,7 +61,14 @@ export type Donor = {
   birth_date: string | null;
   gender: string | null;
   blood_type: string | null;
+  diagnosis: string | null;
+  customer_name: string | null;
+  receipt_date: string | null;
+  material_type: string | null;
+  cell_type_id: number | null;
+  notes: string | null;
   archived: boolean;
+  cell_type?: CellType;
 };
 
 export type Donation = {
@@ -102,6 +110,62 @@ export type Container = {
   container_type?: ContainerType;
   location?: Location;
   donation?: Donation;
+};
+
+// === НОВЫЕ ТИПЫ v0.8.0 ===
+
+export type CultureStatus = 'Активна' | 'Заморожена' | 'Утилизирована' | 'Отгружена';
+
+export type Culture = {
+  id: number;
+  culture_code: string;
+  donor_id: number;
+  container_type_id: number | null;
+  passage_number: number;
+  confluency: number | null;
+  status: CultureStatus;
+  current_equipment_id: number | null;
+  concentration_cells_ml: number | null;
+  total_cells: number | null;
+  viability_percent: number | null;
+  volume_ml: number | null;
+  freeze_date: string | null;
+  thaw_date: string | null;
+  notes: string | null;
+  created_at: string;
+  archived: boolean;
+  // Relations
+  donor?: Donor;
+  container_type?: ContainerType;
+  equipment?: Equipment;
+};
+
+export type ManipulationType = 'Посев' | 'Пассаж' | 'СменаСреды' | 'Заморозка' | 'Разморозка' | 'Подсчёт' | 'QC' | 'Утилизация' | 'Отгрузка' | 'Иное';
+
+export type Manipulation = {
+  id: number;
+  culture_id: number;
+  type: ManipulationType;
+  operator_id: string;
+  performed_at: string;
+  parameters: Record<string, unknown> | null;
+  notes: string | null;
+  created_at: string;
+  // Relations
+  culture?: Culture;
+  operator?: Profile;
+};
+
+export type MediaDefinition = {
+  id: number;
+  code: string;
+  name_ru: string;
+  base_media: string | null;
+  components_json: Record<string, unknown> | null;
+  storage_temp: string | null;
+  shelf_life_days: number | null;
+  notes: string | null;
+  archived: boolean;
 };
 
 export type ContainerLink = {

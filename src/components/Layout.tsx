@@ -29,7 +29,7 @@ const menuItems = [
     children: [
       { path: '/donors', icon: Users, label: '1. Доноры' },
       { path: '/donations', icon: Droplet, label: '2. Донации' },
-      { path: '/containers', icon: Package, label: '3. Культуры' },
+      { path: '/cultures', icon: Beaker, label: '3. Культуры' },
       { path: '/banks', icon: Archive, label: '4. Банки (MCB/WCB)' },
       { path: '/releases', icon: Send, label: '5. Выдача' },
     ]

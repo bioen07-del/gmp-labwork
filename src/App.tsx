@@ -12,6 +12,7 @@ import { LocationsPage } from '@/pages/LocationsPage';
 import { DonationsPage } from '@/pages/DonationsPage';
 import { ContainersPage } from '@/pages/ContainersPage';
 import { ContainerDetailPage } from '@/pages/ContainerDetailPage';
+import { CulturesPage } from '@/pages/CulturesPage';
 import { TasksPage } from '@/pages/TasksPage';
 import { TaskExecutePage } from '@/pages/TaskExecutePage';
 import { ProcessesPage } from '@/pages/ProcessesPage';
@@ -53,6 +54,7 @@ function AppRoutes() {
       <Route path="/donations" element={<ProtectedRoute><DonationsPage /></ProtectedRoute>} />
       <Route path="/containers" element={<ProtectedRoute><ContainersPage /></ProtectedRoute>} />
       <Route path="/containers/:id" element={<ProtectedRoute><ContainerDetailPage /></ProtectedRoute>} />
+      <Route path="/cultures" element={<ProtectedRoute><CulturesPage /></ProtectedRoute>} />
       <Route path="/tasks" element={<ProtectedRoute><TasksPage /></ProtectedRoute>} />
       <Route path="/tasks/:id" element={<ProtectedRoute><TasksPage /></ProtectedRoute>} />
       <Route path="/tasks/:id/execute" element={<ProtectedRoute><TaskExecutePage /></ProtectedRoute>} />
