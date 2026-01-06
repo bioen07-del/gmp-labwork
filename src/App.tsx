@@ -26,6 +26,9 @@ import { StorageMapPage } from '@/pages/StorageMapPage';
 import { MediaPage } from '@/pages/MediaPage';
 import { DonorsPage } from '@/pages/DonorsPage';
 import { ReportsPage } from '@/pages/ReportsPage';
+import { OperatorTodayPage } from '@/pages/operator/OperatorTodayPage';
+import { OperatorRunPage } from '@/pages/operator/OperatorRunPage';
+import { OperatorTaskPage } from '@/pages/operator/OperatorTaskPage';
 import { OfflineProvider } from '@/contexts/OfflineContext';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -65,6 +68,9 @@ function AppRoutes() {
       <Route path="/media" element={<ProtectedRoute><MediaPage /></ProtectedRoute>} />
       <Route path="/donors" element={<ProtectedRoute><DonorsPage /></ProtectedRoute>} />
       <Route path="/reports" element={<ProtectedRoute><ReportsPage /></ProtectedRoute>} />
+      <Route path="/operator/today" element={<ProtectedRoute><OperatorTodayPage /></ProtectedRoute>} />
+      <Route path="/operator/run/:id" element={<ProtectedRoute><OperatorRunPage /></ProtectedRoute>} />
+      <Route path="/operator/task/:id" element={<ProtectedRoute><OperatorTaskPage /></ProtectedRoute>} />
     </Routes>
   );
 }

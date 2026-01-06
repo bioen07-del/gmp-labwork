@@ -11,13 +11,14 @@ import { Tooltip } from '@/components/Tooltip';
 import { supabase } from '@/lib/supabase';
 import {
   LayoutDashboard, Database, FlaskConical, Box, MapPin, Wrench,
-  ChevronDown, ChevronRight, LogOut, Sun, Moon, Menu, X, Users, FileText, ClipboardList, Droplet, Package, ListTodo, GitBranch, Archive, Send, TestTube, AlertTriangle, Beaker, Settings, Grid3X3, Scan, Wifi, WifiOff, HelpCircle
+  ChevronDown, ChevronRight, LogOut, Sun, Moon, Menu, X, Users, FileText, ClipboardList, Droplet, Package, ListTodo, GitBranch, Archive, Send, TestTube, AlertTriangle, Beaker, Settings, Grid3X3, Scan, Wifi, WifiOff, HelpCircle, Play
 } from 'lucide-react';
 
 const APP_VERSION = __APP_VERSION__;
 
 const menuItems = [
   { path: '/', icon: LayoutDashboard, label: 'Дашборд' },
+  { path: '/operator/today', icon: Play, label: 'Оператор' },
   { path: '/tasks', icon: ListTodo, label: 'Задачи' },
   { path: '/deviations', icon: AlertTriangle, label: 'Отклонения' },
   { path: '/donations', icon: Droplet, label: 'Донации' },

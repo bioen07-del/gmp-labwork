@@ -125,8 +125,27 @@ export type Task = {
   assigned_to: string | null;
   completed_at: string | null;
   created_at: string;
+  // Operator mode fields
+  scope_type: 'Run' | 'Container' | 'General';
+  scope_id: number | null;
+  is_group: boolean;
   container?: Container;
   assignee?: Profile;
+  workflow_instance?: WorkflowInstance;
+  targets?: TaskTarget[];
+};
+
+export type TaskTarget = {
+  id: number;
+  task_id: number;
+  container_id: number;
+  status: 'Pending' | 'Completed' | 'Skipped';
+  completed_at: string | null;
+  skipped_reason: string | null;
+  notes: string | null;
+  data_json: Record<string, unknown> | null;
+  created_at: string;
+  container?: Container;
 };
 
 export type Process = {
@@ -175,13 +194,19 @@ export type ExecutedStep = {
   performer?: Profile;
 };
 
+export type RunStage = 'Donation' | 'Primary' | 'MCB_Creation' | 'MCB_Stored' | 'WCB_Creation' | 'WCB_Stored' | 'Released' | 'Disposed' | 'Closed';
+
 export type WorkflowInstance = {
   id: number;
   process_version_id: number;
   root_material_id: number | null;
   status: string;
   instance_params_json: Record<string, unknown> | null;
+  // Operator mode fields
+  stage: RunStage;
+  run_name: string | null;
   process_version?: ProcessVersion;
+  donation?: Donation;
 };
 
 export type BankBatch = {
