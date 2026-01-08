@@ -3,49 +3,71 @@ import { useNavigate } from 'react-router-dom';
 import { supabase, Donation, Donor } from '@/lib/supabase';
 import { DataTable } from '@/components/DataTable';
 import { Modal, FormField, Input, Select, Button } from '@/components/Modal';
-import { ListTodo, GitBranch } from 'lucide-react';
+import { Beaker } from 'lucide-react';
+import { format } from 'date-fns';
 
-const materialTypes = ['blood', 'bone_marrow', 'cord_blood', 'tissue', 'other'];
-const conditions = ['good', 'acceptable', 'poor'];
+const materialTypes = [
+  { value: 'Кровь', label: 'Кровь' },
+  { value: 'Костный мозг', label: 'Костный мозг' },
+  { value: 'Жировая ткань', label: 'Жировая ткань' },
+  { value: 'Пуповинная кровь', label: 'Пуповинная кровь' },
+  { value: 'Биоптат', label: 'Биоптат' },
+  { value: 'Другое', label: 'Другое' },
+];
+
+const conditions = [
+  { value: 'Хорошее', label: 'Хорошее' },
+  { value: 'Удовлетворительное', label: 'Удовлетворительное' },
+  { value: 'Плохое', label: 'Плохое' },
+];
 
 export function DonationsPage() {
   const navigate = useNavigate();
   const [data, setData] = useState<Donation[]>([]);
   const [donors, setDonors] = useState<Donor[]>([]);
-  const [workflows, setWorkflows] = useState<Record<number, { id: number; status: string; taskCount: number }>>({});
+  const [cultureCount, setCultureCount] = useState<Record<number, number>>({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Donation | null>(null);
   const [generatedCode, setGeneratedCode] = useState<string | null>(null);
+  const [createdCultureCode, setCreatedCultureCode] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState({
-    donor_id: '', donation_datetime: '', material_type: 'blood',
-    received_condition: 'good', transport_temperature_c: '', notes: ''
+    donor_id: '',
+    donation_datetime: '',
+    material_type: 'Кровь',
+    received_condition: 'Хорошее',
+    notes: ''
   });
 
   const load = async () => {
     setLoading(true);
-    const [don, dnr, wf] = await Promise.all([
-      supabase.from('donations').select('*, donor:donors(*)').order('id', { ascending: false }),
-      supabase.from('donors').select('*').eq('archived', false),
-      supabase.from('workflow_instances').select('id, donation_id, status')
+    const [don, dnr] = await Promise.all([
+      supabase.from('donations').select('*, donor:donors(*)').eq('archived', false).order('id', { ascending: false }),
+      supabase.from('donors').select('*').eq('archived', false).order('donor_code')
     ]);
     if (don.error) setError(don.error.message);
     else setData(don.data || []);
     setDonors(dnr.data || []);
     
-    // Загружаем количество задач для каждого workflow
-    if (wf.data) {
-      const wfMap: Record<number, { id: number; status: string; taskCount: number }> = {};
-      for (const w of wf.data) {
-        if (w.donation_id) {
-          const { count } = await supabase.from('tasks').select('*', { count: 'exact', head: true }).eq('workflow_instance_id', w.id);
-          wfMap[w.donation_id] = { id: w.id, status: w.status, taskCount: count || 0 };
-        }
+    // Подсчитываем культуры для каждой донации (через donor_id)
+    if (don.data) {
+      const donorIds = [...new Set(don.data.map(d => d.donor_id).filter(Boolean))];
+      if (donorIds.length > 0) {
+        const { data: cultures } = await supabase
+          .from('cultures')
+          .select('donor_id')
+          .in('donor_id', donorIds);
+        
+        const counts: Record<number, number> = {};
+        cultures?.forEach(c => {
+          counts[c.donor_id] = (counts[c.donor_id] || 0) + 1;
+        });
+        setCultureCount(counts);
       }
-      setWorkflows(wfMap);
     }
+    
     setLoading(false);
   };
 
@@ -54,20 +76,21 @@ export function DonationsPage() {
   const openAdd = () => {
     setEditing(null);
     setGeneratedCode(null);
+    setCreatedCultureCode(null);
     const now = new Date().toISOString().slice(0, 16);
-    setForm({ donor_id: '', donation_datetime: now, material_type: 'blood', received_condition: 'good', transport_temperature_c: '', notes: '' });
+    setForm({ donor_id: '', donation_datetime: now, material_type: 'Кровь', received_condition: 'Хорошее', notes: '' });
     setModalOpen(true);
   };
 
   const openEdit = (item: Donation) => {
     setEditing(item);
     setGeneratedCode(null);
+    setCreatedCultureCode(null);
     setForm({
       donor_id: item.donor_id?.toString() || '',
       donation_datetime: item.donation_datetime?.slice(0, 16) || '',
       material_type: item.material_type,
-      received_condition: item.received_condition || 'good',
-      transport_temperature_c: item.transport_temperature_c?.toString() || '',
+      received_condition: item.received_condition || 'Хорошее',
       notes: item.notes || ''
     });
     setModalOpen(true);
@@ -86,7 +109,6 @@ export function DonationsPage() {
       donation_datetime: form.donation_datetime,
       material_type: form.material_type,
       received_condition: form.received_condition,
-      transport_temperature_c: form.transport_temperature_c ? parseFloat(form.transport_temperature_c) : null,
       notes: form.notes || null
     };
     
@@ -94,7 +116,7 @@ export function DonationsPage() {
       await supabase.from('donations').update(payload).eq('id', editing.id);
       setModalOpen(false);
     } else {
-      // Генерируем код автоматически
+      // Генерируем код донации
       const { data: codeData } = await supabase.rpc('generate_donation_code', { p_donor_id: parseInt(form.donor_id) });
       const newCode = codeData as string;
       
@@ -108,30 +130,27 @@ export function DonationsPage() {
       if (error) {
         setError(error.message);
       } else if (newDonation) {
-        // Создаём материал
-        const { data: material } = await supabase
-          .from('materials')
-          .insert({
-            material_code: `M-${newCode}`,
-            donation_id: newDonation.id,
-            status: 'Active'
-          })
-          .select()
-          .single();
+        // Автоматически создаём первую культуру
+        const donor = donors.find(d => d.id === parseInt(form.donor_id));
+        const donorCode = donor?.donor_code || 'D-0000';
         
-        // Создаём Run (workflow_instance)
-        if (material) {
-          await supabase.from('workflow_instances').insert({
-            process_version_id: 1, // default process
-            root_material_id: material.id,
-            donation_id: newDonation.id,
-            status: 'Active',
-            stage: 'Donation',
-            run_name: `Run ${newCode}`
-          });
-        }
+        // Проверяем сколько культур уже есть у донора
+        const { count } = await supabase
+          .from('cultures')
+          .select('*', { count: 'exact', head: true })
+          .eq('donor_id', form.donor_id);
+        
+        const cultureCode = `${donorCode}-${String((count || 0) + 1).padStart(2, '0')}`;
+        
+        await supabase.from('cultures').insert({
+          culture_code: cultureCode,
+          donor_id: parseInt(form.donor_id),
+          passage_number: 0,
+          status: 'Активна'
+        });
         
         setGeneratedCode(newCode);
+        setCreatedCultureCode(cultureCode);
       }
     }
     load();
@@ -143,7 +162,38 @@ export function DonationsPage() {
     load();
   };
 
-  const getDonorName = (d: Donation) => d.donor?.full_name || d.donor?.donor_code || '-';
+  const columns = [
+    { key: 'donation_code', label: 'Код донации' },
+    { 
+      key: 'donor', 
+      label: 'Донор', 
+      render: (d: Donation) => d.donor?.donor_code || '-'
+    },
+    { 
+      key: 'donation_datetime', 
+      label: 'Дата', 
+      render: (d: Donation) => d.donation_datetime ? format(new Date(d.donation_datetime), 'dd.MM.yyyy HH:mm') : '-'
+    },
+    { key: 'material_type', label: 'Материал' },
+    { key: 'received_condition', label: 'Состояние' },
+    { 
+      key: 'cultures', 
+      label: 'Культуры', 
+      render: (d: Donation) => {
+        const count = d.donor_id ? cultureCount[d.donor_id] || 0 : 0;
+        if (count === 0) return <span className="text-gray-400">—</span>;
+        return (
+          <button
+            onClick={(e) => { e.stopPropagation(); navigate(`/cultures?donor=${d.donor_id}`); }}
+            className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded hover:bg-blue-200"
+          >
+            <Beaker size={12} />
+            {count}
+          </button>
+        );
+      }
+    },
+  ];
 
   return (
     <>
@@ -152,30 +202,12 @@ export function DonationsPage() {
         data={data}
         loading={loading}
         error={error}
-        columns={[
-          { key: 'donation_code', label: 'Код' },
-          { key: 'donor', label: 'Донор', render: getDonorName },
-          { key: 'donation_datetime', label: 'Дата/время', render: (i) => new Date(i.donation_datetime).toLocaleString('ru-RU') },
-          { key: 'material_type', label: 'Тип материала' },
-          { key: 'received_condition', label: 'Состояние' },
-          { key: 'workflow', label: 'Процесс', render: (i) => {
-            const wf = workflows[i.id];
-            if (!wf) return <span className="text-gray-400">—</span>;
-            return (
-              <button
-                onClick={(e) => { e.stopPropagation(); navigate(`/tasks?workflow=${wf.id}`); }}
-                className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded hover:bg-blue-200 dark:hover:bg-blue-800/50"
-              >
-                <ListTodo size={12} />
-                {wf.taskCount} задач
-              </button>
-            );
-          }},
-        ]}
+        columns={columns}
         searchKeys={['donation_code', 'material_type']}
         onAdd={openAdd}
         onEdit={openEdit}
         onArchive={handleArchive}
+        canEdit={true}
       />
 
       <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Редактирование донации' : 'Новая донация'}>
@@ -187,51 +219,89 @@ export function DonationsPage() {
               </svg>
             </div>
             <p className="text-lg font-medium text-gray-800 dark:text-white mb-2">Донация создана</p>
-            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">{generatedCode}</p>
-            <Button className="mt-4" onClick={() => setModalOpen(false)}>Закрыть</Button>
+            <p className="text-2xl font-bold text-blue-600 dark:text-blue-400 mb-3">{generatedCode}</p>
+            {createdCultureCode && (
+              <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg mb-4">
+                <p className="text-sm text-gray-600 dark:text-gray-400">Автоматически создана культура:</p>
+                <p className="text-lg font-semibold text-green-600 dark:text-green-400">{createdCultureCode}</p>
+              </div>
+            )}
+            <div className="flex gap-2 justify-center">
+              <Button variant="secondary" onClick={() => setModalOpen(false)}>Закрыть</Button>
+              {createdCultureCode && (
+                <Button onClick={() => { setModalOpen(false); navigate('/cultures'); }}>
+                  К культурам
+                </Button>
+              )}
+            </div>
           </div>
         ) : (
-          <>
+          <div className="space-y-4">
             {editing && (
               <FormField label="Код донации">
                 <Input value={editing.donation_code} disabled className="bg-gray-100 dark:bg-gray-700" />
               </FormField>
             )}
-            {!editing && (
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4 p-2 bg-blue-50 dark:bg-blue-900/20 rounded">
-                Код будет сгенерирован автоматически: <strong>DON-{'{код_донора}'}-XXX</strong>
-              </p>
-            )}
+            
             <FormField label="Донор" required>
-              <Select value={form.donor_id} onChange={e => setForm({ ...form, donor_id: e.target.value })} disabled={!!editing}>
+              <Select 
+                value={form.donor_id} 
+                onChange={e => setForm({ ...form, donor_id: e.target.value })} 
+                disabled={!!editing}
+              >
                 <option value="">-- Выберите донора --</option>
-                {donors.map(d => <option key={d.id} value={d.id}>{d.donor_code}</option>)}
+                {donors.map(d => (
+                  <option key={d.id} value={d.id}>
+                    {d.donor_code} {d.full_name ? `- ${d.full_name}` : ''}
+                  </option>
+                ))}
               </Select>
             </FormField>
-            <FormField label="Дата и время" required>
-              <Input type="datetime-local" value={form.donation_datetime} onChange={e => setForm({ ...form, donation_datetime: e.target.value })} />
+            
+            <FormField label="Дата и время получения" required>
+              <Input 
+                type="datetime-local" 
+                value={form.donation_datetime} 
+                onChange={e => setForm({ ...form, donation_datetime: e.target.value })} 
+              />
             </FormField>
-            <FormField label="Тип материала" required>
-              <Select value={form.material_type} onChange={e => setForm({ ...form, material_type: e.target.value })}>
-                {materialTypes.map(t => <option key={t} value={t}>{t}</option>)}
-              </Select>
-            </FormField>
-            <FormField label="Состояние при получении">
-              <Select value={form.received_condition} onChange={e => setForm({ ...form, received_condition: e.target.value })}>
-                {conditions.map(c => <option key={c} value={c}>{c}</option>)}
-              </Select>
-            </FormField>
-            <FormField label="Температура транспортировки (°C)">
-              <Input type="number" step="0.1" value={form.transport_temperature_c} onChange={e => setForm({ ...form, transport_temperature_c: e.target.value })} />
-            </FormField>
-            <FormField label="Примечания">
-              <Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
-            </FormField>
-            <div className="flex gap-2 justify-end mt-6">
-              <Button variant="secondary" onClick={() => setModalOpen(false)}>Отмена</Button>
-              <Button onClick={handleSave} disabled={saving}>{saving ? 'Сохранение...' : 'Сохранить'}</Button>
+            
+            <div className="grid grid-cols-2 gap-3">
+              <FormField label="Тип материала">
+                <Select value={form.material_type} onChange={e => setForm({ ...form, material_type: e.target.value })}>
+                  {materialTypes.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+                </Select>
+              </FormField>
+              
+              <FormField label="Состояние">
+                <Select value={form.received_condition} onChange={e => setForm({ ...form, received_condition: e.target.value })}>
+                  {conditions.map(c => <option key={c.value} value={c.value}>{c.label}</option>)}
+                </Select>
+              </FormField>
             </div>
-          </>
+            
+            <FormField label="Примечания">
+              <textarea 
+                value={form.notes} 
+                onChange={e => setForm({ ...form, notes: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+                rows={2}
+              />
+            </FormField>
+            
+            {!editing && (
+              <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg text-sm text-blue-700 dark:text-blue-300">
+                <strong>Автоматически:</strong> При создании донации будет создана первая культура для работы
+              </div>
+            )}
+            
+            <div className="flex gap-2 justify-end pt-2">
+              <Button variant="secondary" onClick={() => setModalOpen(false)}>Отмена</Button>
+              <Button onClick={handleSave} disabled={saving}>
+                {saving ? 'Сохранение...' : editing ? 'Сохранить' : 'Создать'}
+              </Button>
+            </div>
+          </div>
         )}
       </Modal>
     </>
