@@ -1,41 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase, WorkflowInstance, Task, Container } from '@/lib/supabase';
-import { Loader2, Play, Search, ChevronRight, Clock, AlertCircle, CheckCircle2 } from 'lucide-react';
+import { supabase, Culture, Donor } from '@/lib/supabase';
+import { Loader2, Search, ChevronRight, Beaker, Users, Plus } from 'lucide-react';
 import { format } from 'date-fns';
 import { ru } from 'date-fns/locale';
 
-const stageLabels: Record<string, string> = {
-  Donation: 'Донация',
-  Primary: 'Первичная культура',
-  MCB_Creation: 'Создание MCB',
-  MCB_Stored: 'MCB хранится',
-  WCB_Creation: 'Создание WCB',
-  WCB_Stored: 'WCB хранится',
-  Released: 'Выдано',
-  Disposed: 'Утилизировано',
-  Closed: 'Закрыто'
-};
-
-const stageColors: Record<string, string> = {
-  Donation: 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
-  Primary: 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
-  MCB_Creation: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
-  MCB_Stored: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-  WCB_Creation: 'bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-400',
-  WCB_Stored: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-  Released: 'bg-teal-100 text-teal-800 dark:bg-teal-900/30 dark:text-teal-400',
-  Disposed: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400',
-  Closed: 'bg-gray-100 text-gray-800 dark:bg-gray-900/30 dark:text-gray-400'
+const statusColors: Record<string, string> = {
+  'Активна': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+  'Заморожена': 'bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400',
+  'Утилизирована': 'bg-gray-100 text-gray-800 dark:bg-gray-700 dark:text-gray-400',
+  'Отгружена': 'bg-purple-100 text-purple-800 dark:bg-purple-900/30 dark:text-purple-400',
 };
 
 export function OperatorTodayPage() {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [scanCode, setScanCode] = useState('');
-  const [runs, setRuns] = useState<WorkflowInstance[]>([]);
-  const [tasks, setTasks] = useState<Task[]>([]);
-  const [scanResult, setScanResult] = useState<Container | null>(null);
+  const [cultures, setCultures] = useState<Culture[]>([]);
+  const [recentDonors, setRecentDonors] = useState<Donor[]>([]);
+  const [scanResult, setScanResult] = useState<Culture | null>(null);
   const [scanError, setScanError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,25 +28,25 @@ export function OperatorTodayPage() {
   const loadData = async () => {
     setLoading(true);
     
-    // Load active runs (not Closed/Disposed/Released)
-    const { data: runsData } = await supabase
-      .from('workflow_instances')
-      .select('*, process_version:process_versions(*, process:processes(*))')
-      .not('stage', 'in', '(Closed,Disposed,Released)')
+    // Загрузить активные культуры
+    const { data: culturesData } = await supabase
+      .from('cultures')
+      .select('*, donor:donors(*), container_type:container_types(*)')
+      .eq('status', 'Активна')
+      .eq('archived', false)
       .order('id', { ascending: false })
       .limit(20);
 
-    // Load pending/in-progress group tasks
-    const { data: tasksData } = await supabase
-      .from('tasks')
-      .select('*, container:containers(*), workflow_instance:workflow_instances(*)')
-      .in('status', ['Pending', 'InProgress'])
-      .eq('is_group', true)
-      .order('due_date', { ascending: true })
-      .limit(20);
+    // Последние доноры
+    const { data: donorsData } = await supabase
+      .from('donors')
+      .select('*')
+      .eq('archived', false)
+      .order('id', { ascending: false })
+      .limit(5);
 
-    setRuns(runsData || []);
-    setTasks(tasksData || []);
+    setCultures(culturesData || []);
+    setRecentDonors(donorsData || []);
     setLoading(false);
   };
 
@@ -73,32 +56,32 @@ export function OperatorTodayPage() {
     setScanError(null);
     setScanResult(null);
 
+    // Поиск культуры по коду
     const { data, error } = await supabase
-      .from('containers')
-      .select('*, container_type:container_types(*), location:locations(*), donation:donations(*)')
-      .eq('container_code', scanCode.trim().toUpperCase())
+      .from('cultures')
+      .select('*, donor:donors(*), container_type:container_types(*)')
+      .eq('culture_code', scanCode.trim().toUpperCase())
       .single();
 
     if (error || !data) {
-      setScanError('Контейнер не найден');
+      // Попробуем найти по коду донора
+      const { data: donorData } = await supabase
+        .from('donors')
+        .select('id')
+        .eq('donor_code', scanCode.trim().toUpperCase())
+        .single();
+      
+      if (donorData) {
+        navigate(`/cultures?donor=${donorData.id}`);
+        return;
+      }
+      
+      setScanError('Культура не найдена');
       return;
     }
 
     setScanResult(data);
-    // Navigate to run if container has donation with workflow
-    if (data.donation_id) {
-      // Find workflow instance for this donation
-      const { data: workflow } = await supabase
-        .from('workflow_instances')
-        .select('id')
-        .eq('root_material_id', data.material_id)
-        .single();
-      
-      if (workflow) {
-        navigate(`/operator/run/${workflow.id}`);
-        return;
-      }
-    }
+    navigate(`/cultures/${data.id}`);
   };
 
   const handleKeyPress = (e: React.KeyboardEvent) => {
@@ -123,10 +106,39 @@ export function OperatorTodayPage() {
         </p>
       </div>
 
+      {/* Quick Actions */}
+      <div className="grid grid-cols-2 gap-4">
+        <button
+          onClick={() => navigate('/donors')}
+          className="bg-white dark:bg-gray-800 rounded-xl shadow p-6 hover:shadow-lg transition-shadow border border-gray-100 dark:border-gray-700 flex items-center gap-4"
+        >
+          <div className="p-3 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+            <Users className="text-blue-600" size={24} />
+          </div>
+          <div className="text-left">
+            <p className="font-semibold text-gray-800 dark:text-white">Новый донор</p>
+            <p className="text-sm text-gray-500">Зарегистрировать</p>
+          </div>
+        </button>
+        
+        <button
+          onClick={() => navigate('/cultures')}
+          className="bg-white dark:bg-gray-800 rounded-xl shadow p-6 hover:shadow-lg transition-shadow border border-gray-100 dark:border-gray-700 flex items-center gap-4"
+        >
+          <div className="p-3 bg-green-100 dark:bg-green-900/30 rounded-lg">
+            <Beaker className="text-green-600" size={24} />
+          </div>
+          <div className="text-left">
+            <p className="font-semibold text-gray-800 dark:text-white">Культуры</p>
+            <p className="text-sm text-gray-500">Все культуры</p>
+          </div>
+        </button>
+      </div>
+
       {/* Scan Input */}
       <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6">
         <label className="block text-sm font-medium text-gray-600 dark:text-gray-300 mb-2">
-          Сканировать контейнер
+          Найти культуру или донора
         </label>
         <div className="flex gap-3">
           <div className="relative flex-1">
@@ -136,7 +148,7 @@ export function OperatorTodayPage() {
               value={scanCode}
               onChange={e => setScanCode(e.target.value)}
               onKeyPress={handleKeyPress}
-              placeholder="Введите или отсканируйте код..."
+              placeholder="Введите код культуры или донора..."
               className="w-full pl-12 pr-4 py-4 text-lg border border-gray-300 dark:border-gray-600 rounded-xl bg-gray-50 dark:bg-gray-700 text-gray-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               autoFocus
             />
@@ -150,49 +162,57 @@ export function OperatorTodayPage() {
         </div>
         {scanError && (
           <p className="mt-3 text-red-500 flex items-center gap-2">
-            <AlertCircle size={18} /> {scanError}
+            {scanError}
           </p>
-        )}
-        {scanResult && (
-          <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-800">
-            <p className="text-green-700 dark:text-green-400 font-medium">
-              Найден: {scanResult.container_code} — {scanResult.container_type?.code}
-            </p>
-          </div>
         )}
       </div>
 
-      {/* Active Runs */}
+      {/* Active Cultures */}
       <div>
         <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
-          <Play size={22} className="text-blue-500" />
-          Активные Run ({runs.length})
+          <Beaker size={22} className="text-green-500" />
+          Активные культуры ({cultures.length})
         </h2>
         
-        {runs.length === 0 ? (
+        {cultures.length === 0 ? (
           <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-8 text-center text-gray-500">
-            Нет активных Run
+            <p>Нет активных культур</p>
+            <button
+              onClick={() => navigate('/donations')}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+            >
+              Создать донацию
+            </button>
           </div>
         ) : (
-          <div className="grid gap-4">
-            {runs.map(run => (
+          <div className="grid gap-3">
+            {cultures.map(culture => (
               <div
-                key={run.id}
-                onClick={() => navigate(`/operator/run/${run.id}`)}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow p-5 cursor-pointer hover:shadow-lg transition-shadow border border-gray-100 dark:border-gray-700 flex items-center justify-between"
+                key={culture.id}
+                onClick={() => navigate(`/cultures/${culture.id}`)}
+                className="bg-white dark:bg-gray-800 rounded-xl shadow p-4 cursor-pointer hover:shadow-lg transition-shadow border border-gray-100 dark:border-gray-700 flex items-center justify-between"
               >
                 <div className="flex-1">
-                  <div className="flex items-center gap-3 mb-2">
+                  <div className="flex items-center gap-3 mb-1">
                     <span className="font-bold text-lg text-gray-800 dark:text-white">
-                      Run #{run.id}
+                      {culture.culture_code}
                     </span>
-                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${stageColors[run.stage] || stageColors.Donation}`}>
-                      {stageLabels[run.stage] || run.stage}
+                    <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${statusColors[culture.status]}`}>
+                      {culture.status}
                     </span>
+                    <span className="text-sm text-gray-500">P{culture.passage_number}</span>
                   </div>
                   <p className="text-gray-500 dark:text-gray-400 text-sm">
-                    {run.run_name || run.process_version?.process?.name_ru || 'Процесс'}
+                    Донор: {culture.donor?.donor_code}
+                    {culture.donor?.full_name && ` — ${culture.donor.full_name}`}
                   </p>
+                </div>
+                <div className="text-right mr-2">
+                  {culture.confluency && (
+                    <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                      {culture.confluency}%
+                    </span>
+                  )}
                 </div>
                 <ChevronRight size={24} className="text-gray-400" />
               </div>
@@ -201,47 +221,30 @@ export function OperatorTodayPage() {
         )}
       </div>
 
-      {/* Group Tasks */}
-      <div>
-        <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
-          <Clock size={22} className="text-orange-500" />
-          Мои задачи ({tasks.length})
-        </h2>
-        
-        {tasks.length === 0 ? (
-          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-8 text-center text-gray-500">
-            Нет активных задач
-          </div>
-        ) : (
-          <div className="grid gap-4">
-            {tasks.map(task => (
+      {/* Recent Donors */}
+      {recentDonors.length > 0 && (
+        <div>
+          <h2 className="text-xl font-semibold text-gray-800 dark:text-white mb-4 flex items-center gap-2">
+            <Users size={22} className="text-blue-500" />
+            Последние доноры
+          </h2>
+          <div className="grid gap-2">
+            {recentDonors.map(donor => (
               <div
-                key={task.id}
-                onClick={() => navigate(`/operator/task/${task.id}`)}
-                className="bg-white dark:bg-gray-800 rounded-xl shadow p-5 cursor-pointer hover:shadow-lg transition-shadow border border-gray-100 dark:border-gray-700"
+                key={donor.id}
+                onClick={() => navigate(`/donors`)}
+                className="bg-white dark:bg-gray-800 rounded-lg shadow p-3 cursor-pointer hover:shadow-md transition-shadow border border-gray-100 dark:border-gray-700 flex items-center justify-between"
               >
-                <div className="flex items-center justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-2">
-                      <span className="font-bold text-gray-800 dark:text-white">{task.title}</span>
-                      {task.status === 'InProgress' && (
-                        <span className="px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/30 dark:text-blue-400 rounded text-xs font-medium">
-                          В работе
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-gray-500 dark:text-gray-400 text-sm">
-                      {task.workflow_instance ? `Run #${task.workflow_instance.id}` : ''}
-                      {task.due_date && ` • До ${format(new Date(task.due_date), 'd MMM', { locale: ru })}`}
-                    </p>
-                  </div>
-                  <ChevronRight size={24} className="text-gray-400" />
+                <div>
+                  <span className="font-medium text-gray-800 dark:text-white">{donor.donor_code}</span>
+                  {donor.full_name && <span className="text-gray-500 ml-2">{donor.full_name}</span>}
                 </div>
+                <ChevronRight size={20} className="text-gray-400" />
               </div>
             ))}
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
