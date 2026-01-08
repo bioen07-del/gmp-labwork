@@ -222,18 +222,20 @@ export function DonorsPage() {
                 <Select 
                   value={form.gender}
                   onChange={e => setForm({...form, gender: e.target.value})}
-                  options={genderOptions}
-                />
+                >
+                  {genderOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </Select>
               </FormField>
               <FormField label="Группа крови">
                 <Select 
                   value={form.blood_type}
                   onChange={e => setForm({...form, blood_type: e.target.value})}
-                  options={bloodTypeOptions}
-                />
+                >
+                  {bloodTypeOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </Select>
               </FormField>
             </div>
-            <FormField label="Диагноз" className="mt-3">
+            <FormField label="Диагноз">
               <Input 
                 value={form.diagnosis} 
                 onChange={e => setForm({...form, diagnosis: e.target.value})}
@@ -250,18 +252,18 @@ export function DonorsPage() {
                 <Select 
                   value={form.material_type}
                   onChange={e => setForm({...form, material_type: e.target.value})}
-                  options={materialTypeOptions}
-                />
+                >
+                  {materialTypeOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </Select>
               </FormField>
               <FormField label="Тип клеток">
                 <Select 
                   value={form.cell_type_id}
                   onChange={e => setForm({...form, cell_type_id: e.target.value})}
-                  options={[
-                    { value: '', label: '-- Выберите --' },
-                    ...cellTypes.map(ct => ({ value: ct.id.toString(), label: ct.name_ru }))
-                  ]}
-                />
+                >
+                  <option value="">-- Выберите --</option>
+                  {cellTypes.map(ct => <option key={ct.id} value={ct.id}>{ct.name_ru}</option>)}
+                </Select>
               </FormField>
               <FormField label="Дата получения">
                 <Input 
