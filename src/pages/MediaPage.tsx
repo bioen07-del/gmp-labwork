@@ -1,34 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabase';
-import { useAuth } from '@/contexts/AuthContext';
+import { supabase, MediaDefinition } from '@/lib/supabase';
 import { DataTable } from '@/components/DataTable';
 import { Modal, FormField, Input, Select, Button } from '@/components/Modal';
 import { LabelPrinter } from '@/components/LabelPrinter';
-import { Plus, Printer, ChevronDown, ChevronRight } from 'lucide-react';
+import { Printer, Plus, Beaker, FlaskConical } from 'lucide-react';
 import { format, parseISO, isBefore } from 'date-fns';
-
-interface MediaComponent {
-  id: number;
-  name_ru: string;
-  manufacturer: string | null;
-  catalog_number: string | null;
-  archived: boolean;
-}
-
-interface MediaRecipe {
-  id: number;
-  recipe_code: string;
-  name_ru: string;
-  version: string;
-  status: string;
-  archived: boolean;
-  items?: { component: MediaComponent; amount: number; unit: string }[];
-}
 
 interface MediaBatch {
   id: number;
   batch_code: string;
-  recipe_id: number | null;
+  definition_id: number | null;
   prepared_by: string | null;
   prepared_at: string;
   expiry_at: string;
@@ -37,105 +18,163 @@ interface MediaBatch {
   unit: string;
   notes: string | null;
   archived: boolean;
-  recipe?: MediaRecipe;
+  definition?: MediaDefinition;
 }
 
-const statuses = ['Active', 'Expired', 'Quarantine', 'Blocked', 'Depleted'];
+const statuses = [
+  { value: 'Активна', label: 'Активна' },
+  { value: 'Истекла', label: 'Истекла' },
+  { value: 'Карантин', label: 'Карантин' },
+  { value: 'Заблокирована', label: 'Заблокирована' },
+  { value: 'Израсходована', label: 'Израсходована' },
+];
+
 const statusColors: Record<string, string> = {
-  Active: 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
-  Expired: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-  Quarantine: 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
-  Blocked: 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
-  Depleted: 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
+  'Активна': 'bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400',
+  'Истекла': 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+  'Карантин': 'bg-yellow-100 text-yellow-800 dark:bg-yellow-900/30 dark:text-yellow-400',
+  'Заблокирована': 'bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400',
+  'Израсходована': 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
 };
 
 export function MediaPage() {
-  const { canEdit } = useAuth();
   const [batches, setBatches] = useState<MediaBatch[]>([]);
-  const [recipes, setRecipes] = useState<MediaRecipe[]>([]);
-  const [components, setComponents] = useState<MediaComponent[]>([]);
+  const [definitions, setDefinitions] = useState<MediaDefinition[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [modalOpen, setModalOpen] = useState(false);
-  const [editing, setEditing] = useState<MediaBatch | null>(null);
-  const [form, setForm] = useState({
-    batch_code: '', recipe_id: '', expiry_at: '', status: 'Active', qty_prepared: '', unit: 'ml', notes: ''
-  });
-  const [expandedRecipes, setExpandedRecipes] = useState<number[]>([]);
-  const [recipeItems, setRecipeItems] = useState<Record<number, { component: MediaComponent | null; amount: number; unit: string }[]>>({});
-  const [activeTab, setActiveTab] = useState<'batches' | 'recipes' | 'components'>('batches');
+  const [activeTab, setActiveTab] = useState<'batches' | 'definitions'>('batches');
   
-  // Label printer state
+  // Batch modal
+  const [batchModalOpen, setBatchModalOpen] = useState(false);
+  const [editingBatch, setEditingBatch] = useState<MediaBatch | null>(null);
+  const [batchForm, setBatchForm] = useState({
+    batch_code: '', definition_id: '', expiry_at: '', status: 'Активна', qty_prepared: '', unit: 'мл', notes: ''
+  });
+  
+  // Definition modal
+  const [defModalOpen, setDefModalOpen] = useState(false);
+  const [editingDef, setEditingDef] = useState<MediaDefinition | null>(null);
+  const [defForm, setDefForm] = useState({
+    code: '', name_ru: '', base_media: '', storage_temp: '', shelf_life_days: '', notes: ''
+  });
+  
+  // Label printer
   const [labelOpen, setLabelOpen] = useState(false);
   const [labelData, setLabelData] = useState<any>(null);
 
   const load = async () => {
     setLoading(true);
-    const [batchRes, recipeRes, compRes] = await Promise.all([
-      supabase.from('media_batches').select('*, recipe:media_recipes(*)').order('expiry_at', { ascending: true }),
-      supabase.from('media_recipes').select('*').eq('archived', false),
-      supabase.from('media_components').select('*').eq('archived', false),
+    const [batchRes, defRes] = await Promise.all([
+      supabase.from('media_batches').select('*, definition:media_definitions(*)').order('expiry_at', { ascending: true }),
+      supabase.from('media_definitions').select('*').eq('archived', false).order('code'),
     ]);
     
     if (batchRes.error) setError(batchRes.error.message);
-    else setBatches(batchRes.data || []);
+    else setBatches((batchRes.data || []).filter(b => !b.archived));
     
-    setRecipes(recipeRes.data || []);
-    setComponents(compRes.data || []);
+    setDefinitions(defRes.data || []);
     setLoading(false);
   };
 
   useEffect(() => { load(); }, []);
 
-  const openAdd = () => {
-    setEditing(null);
-    setForm({ batch_code: '', recipe_id: '', expiry_at: '', status: 'Active', qty_prepared: '', unit: 'ml', notes: '' });
-    setModalOpen(true);
+  // === BATCH HANDLERS ===
+  const openAddBatch = () => {
+    setEditingBatch(null);
+    const code = `MED-${format(new Date(), 'yyyyMMdd')}-${String(batches.length + 1).padStart(3, '0')}`;
+    setBatchForm({ batch_code: code, definition_id: '', expiry_at: '', status: 'Активна', qty_prepared: '', unit: 'мл', notes: '' });
+    setBatchModalOpen(true);
   };
 
-  const openEdit = (item: MediaBatch) => {
-    setEditing(item);
-    setForm({
+  const openEditBatch = (item: MediaBatch) => {
+    setEditingBatch(item);
+    setBatchForm({
       batch_code: item.batch_code,
-      recipe_id: item.recipe_id?.toString() || '',
+      definition_id: item.definition_id?.toString() || '',
       expiry_at: item.expiry_at?.split('T')[0] || '',
       status: item.status,
       qty_prepared: item.qty_prepared?.toString() || '',
-      unit: item.unit || 'ml',
+      unit: item.unit || 'мл',
       notes: item.notes || '',
     });
-    setModalOpen(true);
+    setBatchModalOpen(true);
   };
 
-  const handleSave = async () => {
+  const handleSaveBatch = async () => {
     const payload = {
-      batch_code: form.batch_code,
-      recipe_id: form.recipe_id ? parseInt(form.recipe_id) : null,
-      expiry_at: form.expiry_at,
-      status: form.status,
-      qty_prepared: form.qty_prepared ? parseFloat(form.qty_prepared) : null,
-      unit: form.unit,
-      notes: form.notes || null,
+      batch_code: batchForm.batch_code,
+      definition_id: batchForm.definition_id ? parseInt(batchForm.definition_id) : null,
+      expiry_at: batchForm.expiry_at,
+      status: batchForm.status,
+      qty_prepared: batchForm.qty_prepared ? parseFloat(batchForm.qty_prepared) : 0,
+      unit: batchForm.unit,
+      notes: batchForm.notes || null,
+      prepared_at: new Date().toISOString(),
     };
 
-    if (editing) {
-      await supabase.from('media_batches').update(payload).eq('id', editing.id);
+    if (editingBatch) {
+      await supabase.from('media_batches').update(payload).eq('id', editingBatch.id);
     } else {
       await supabase.from('media_batches').insert(payload);
     }
-    setModalOpen(false);
+    setBatchModalOpen(false);
     load();
   };
 
-  const handleArchive = async (item: MediaBatch) => {
-    await supabase.from('media_batches').update({ archived: !item.archived }).eq('id', item.id);
+  const handleArchiveBatch = async (item: MediaBatch) => {
+    await supabase.from('media_batches').update({ archived: true }).eq('id', item.id);
     load();
   };
 
+  // === DEFINITION HANDLERS ===
+  const openAddDef = () => {
+    setEditingDef(null);
+    setDefForm({ code: '', name_ru: '', base_media: '', storage_temp: '', shelf_life_days: '', notes: '' });
+    setDefModalOpen(true);
+  };
+
+  const openEditDef = (item: MediaDefinition) => {
+    setEditingDef(item);
+    setDefForm({
+      code: item.code,
+      name_ru: item.name_ru,
+      base_media: item.base_media || '',
+      storage_temp: item.storage_temp || '',
+      shelf_life_days: item.shelf_life_days?.toString() || '',
+      notes: item.notes || '',
+    });
+    setDefModalOpen(true);
+  };
+
+  const handleSaveDef = async () => {
+    const payload = {
+      code: defForm.code,
+      name_ru: defForm.name_ru,
+      base_media: defForm.base_media || null,
+      storage_temp: defForm.storage_temp || null,
+      shelf_life_days: defForm.shelf_life_days ? parseInt(defForm.shelf_life_days) : null,
+      notes: defForm.notes || null,
+    };
+
+    if (editingDef) {
+      await supabase.from('media_definitions').update(payload).eq('id', editingDef.id);
+    } else {
+      await supabase.from('media_definitions').insert(payload);
+    }
+    setDefModalOpen(false);
+    load();
+  };
+
+  const handleArchiveDef = async (item: MediaDefinition) => {
+    await supabase.from('media_definitions').update({ archived: true }).eq('id', item.id);
+    load();
+  };
+
+  // === PRINT ===
   const printLabel = (batch: MediaBatch) => {
     setLabelData({
       code: batch.batch_code,
-      type: batch.recipe?.name_ru || 'Среда',
+      type: batch.definition?.name_ru || 'Среда',
       date: batch.expiry_at ? format(parseISO(batch.expiry_at), 'dd.MM.yyyy') : '',
       info: `${batch.qty_prepared} ${batch.unit}`,
     });
@@ -144,208 +183,177 @@ export function MediaPage() {
 
   const isExpiringSoon = (date: string) => {
     const expiry = parseISO(date);
-    const now = new Date();
-    const weekLater = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    const weekLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
     return isBefore(expiry, weekLater);
   };
 
-  // FEFO sorted batches
-  const sortedBatches = [...batches]
-    .filter(b => !b.archived)
-    .sort((a, b) => new Date(a.expiry_at).getTime() - new Date(b.expiry_at).getTime());
-
-  const columns = [
+  const batchColumns = [
     { key: 'batch_code', label: 'Код партии' },
-    { key: 'recipe', label: 'Рецепт', render: (b: MediaBatch) => b.recipe?.name_ru || '-' },
+    { key: 'definition', label: 'Среда', render: (b: MediaBatch) => b.definition?.name_ru || '-' },
     { key: 'status', label: 'Статус', render: (b: MediaBatch) => (
-      <span className={`px-2 py-1 rounded text-xs font-medium ${statusColors[b.status]}`}>{b.status}</span>
+      <span className={`px-2 py-1 rounded text-xs font-medium ${statusColors[b.status] || ''}`}>{b.status}</span>
     )},
-    { key: 'qty_prepared', label: 'Количество', render: (b: MediaBatch) => `${b.qty_prepared} ${b.unit}` },
+    { key: 'qty_prepared', label: 'Кол-во', render: (b: MediaBatch) => `${b.qty_prepared} ${b.unit}` },
     { key: 'expiry_at', label: 'Годен до', render: (b: MediaBatch) => {
       const formatted = b.expiry_at ? format(parseISO(b.expiry_at), 'dd.MM.yyyy') : '-';
       const expiring = b.expiry_at && isExpiringSoon(b.expiry_at);
-      return <span className={expiring ? 'text-red-600 font-medium' : ''}>{formatted}</span>;
+      return <span className={expiring ? 'text-red-600 font-bold' : ''}>{formatted}</span>;
     }},
     { key: 'print', label: '', render: (b: MediaBatch) => (
-      <button onClick={(e) => { e.stopPropagation(); printLabel(b); }} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded" title="Печать этикетки">
+      <button onClick={(e) => { e.stopPropagation(); printLabel(b); }} className="p-1 hover:bg-gray-200 dark:hover:bg-gray-600 rounded">
         <Printer size={16} className="text-blue-600" />
       </button>
     )},
   ];
 
-  const toggleRecipe = async (id: number) => {
-    if (expandedRecipes.includes(id)) {
-      setExpandedRecipes(prev => prev.filter(r => r !== id));
-    } else {
-      setExpandedRecipes(prev => [...prev, id]);
-      // Load recipe items if not loaded
-      if (!recipeItems[id]) {
-        const { data } = await supabase
-          .from('media_recipe_items')
-          .select('*, component:media_components(*)')
-          .eq('recipe_id', id);
-        setRecipeItems(prev => ({ ...prev, [id]: data || [] }));
-      }
-    }
-  };
+  const defColumns = [
+    { key: 'code', label: 'Код' },
+    { key: 'name_ru', label: 'Название' },
+    { key: 'base_media', label: 'Базовая среда', render: (d: MediaDefinition) => d.base_media || '-' },
+    { key: 'storage_temp', label: 'Хранение', render: (d: MediaDefinition) => d.storage_temp || '-' },
+    { key: 'shelf_life_days', label: 'Срок (дней)', render: (d: MediaDefinition) => d.shelf_life_days ?? '-' },
+  ];
 
   return (
     <div>
+      {/* Header */}
+      <div className="flex items-center gap-3 mb-4">
+        <Beaker className="text-blue-600" size={28} />
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-white">Среды</h1>
+      </div>
+
       {/* Tabs */}
       <div className="flex gap-4 mb-6 border-b border-gray-200 dark:border-gray-700">
         {[
-          { key: 'batches', label: 'Партии сред' },
-          { key: 'recipes', label: 'Рецепты' },
-          { key: 'components', label: 'Компоненты' },
+          { key: 'batches', label: 'Партии', icon: FlaskConical },
+          { key: 'definitions', label: 'Справочник сред', icon: Beaker },
         ].map(tab => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key as any)}
-            className={`pb-2 px-1 border-b-2 transition ${activeTab === tab.key
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'}`}
+            onClick={() => setActiveTab(tab.key as typeof activeTab)}
+            className={`flex items-center gap-2 pb-2 px-1 border-b-2 transition ${
+              activeTab === tab.key
+                ? 'border-blue-600 text-blue-600'
+                : 'border-transparent text-gray-500 hover:text-gray-700 dark:text-gray-400'
+            }`}
           >
+            <tab.icon size={16} />
             {tab.label}
           </button>
         ))}
       </div>
 
+      {/* Tab Content */}
       {activeTab === 'batches' && (
         <DataTable
           title="Партии сред (FEFO)"
-          data={sortedBatches}
+          data={batches}
           loading={loading}
           error={error}
-          columns={columns}
+          columns={batchColumns}
           searchKeys={['batch_code']}
-          onAdd={openAdd}
-          onEdit={openEdit}
-          onArchive={handleArchive}
-          canEdit={canEdit()}
+          onAdd={openAddBatch}
+          onEdit={openEditBatch}
+          onArchive={handleArchiveBatch}
+          canEdit={true}
         />
       )}
 
-      {activeTab === 'recipes' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-          <div className="p-4 border-b dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Рецепты сред</h2>
-          </div>
-          <div className="divide-y dark:divide-gray-700">
-            {recipes.map(recipe => (
-              <div key={recipe.id}>
-                <button
-                  onClick={() => toggleRecipe(recipe.id)}
-                  className="w-full p-4 flex items-center justify-between hover:bg-gray-50 dark:hover:bg-gray-700/50"
-                >
-                  <div className="flex items-center gap-3">
-                    {expandedRecipes.includes(recipe.id) ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
-                    <span className="font-medium text-gray-800 dark:text-white">{recipe.recipe_code}</span>
-                    <span className="text-gray-500">{recipe.name_ru}</span>
-                  </div>
-                  <span className="text-sm text-gray-400">v{recipe.version}</span>
-                </button>
-                {expandedRecipes.includes(recipe.id) && (
-                  <div className="px-8 pb-4">
-                    {recipeItems[recipe.id] ? (
-                      recipeItems[recipe.id].length > 0 ? (
-                        <table className="w-full text-sm">
-                          <thead>
-                            <tr className="text-left text-gray-500 dark:text-gray-400">
-                              <th className="pb-2">Компонент</th>
-                              <th className="pb-2">Количество</th>
-                            </tr>
-                          </thead>
-                          <tbody className="text-gray-700 dark:text-gray-300">
-                            {recipeItems[recipe.id].map((item, idx) => (
-                              <tr key={idx}>
-                                <td className="py-1">{item.component?.name_ru || 'Неизвестный компонент'}</td>
-                                <td className="py-1">{item.amount} {item.unit}</td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      ) : (
-                        <div className="text-gray-500">Нет компонентов в рецепте</div>
-                      )
-                    ) : (
-                      <div className="text-gray-400">Загрузка...</div>
-                    )}
-                  </div>
-                )}
-              </div>
-            ))}
-            {recipes.length === 0 && (
-              <div className="p-8 text-center text-gray-500">Нет рецептов</div>
-            )}
-          </div>
-        </div>
+      {activeTab === 'definitions' && (
+        <DataTable
+          title="Справочник сред"
+          data={definitions}
+          loading={loading}
+          error={error}
+          columns={defColumns}
+          searchKeys={['code', 'name_ru']}
+          onAdd={openAddDef}
+          onEdit={openEditDef}
+          onArchive={handleArchiveDef}
+          canEdit={true}
+        />
       )}
 
-      {activeTab === 'components' && (
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow">
-          <div className="p-4 border-b dark:border-gray-700">
-            <h2 className="text-lg font-semibold text-gray-800 dark:text-white">Компоненты сред</h2>
-          </div>
-          <table className="w-full">
-            <thead className="bg-gray-50 dark:bg-gray-700/50">
-              <tr>
-                <th className="text-left p-3 text-sm font-medium text-gray-600 dark:text-gray-300">Название</th>
-                <th className="text-left p-3 text-sm font-medium text-gray-600 dark:text-gray-300">Производитель</th>
-                <th className="text-left p-3 text-sm font-medium text-gray-600 dark:text-gray-300">Каталожный номер</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y dark:divide-gray-700">
-              {components.map(comp => (
-                <tr key={comp.id} className="hover:bg-gray-50 dark:hover:bg-gray-700/30">
-                  <td className="p-3 text-gray-800 dark:text-white">{comp.name_ru}</td>
-                  <td className="p-3 text-gray-600 dark:text-gray-400">{comp.manufacturer || '-'}</td>
-                  <td className="p-3 text-gray-600 dark:text-gray-400">{comp.catalog_number || '-'}</td>
-                </tr>
-              ))}
-              {components.length === 0 && (
-                <tr><td colSpan={3} className="p-8 text-center text-gray-500">Нет компонентов</td></tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Modal */}
-      <Modal isOpen={modalOpen} onClose={() => setModalOpen(false)} title={editing ? 'Редактирование партии' : 'Создание партии'}>
-        <FormField label="Код партии" required>
-          <Input value={form.batch_code} onChange={e => setForm({ ...form, batch_code: e.target.value })} placeholder="MED-2024-001" />
-        </FormField>
-        <FormField label="Рецепт">
-          <Select value={form.recipe_id} onChange={e => setForm({ ...form, recipe_id: e.target.value })}>
-            <option value="">-- Выберите --</option>
-            {recipes.map(r => <option key={r.id} value={r.id}>{r.recipe_code} - {r.name_ru}</option>)}
-          </Select>
-        </FormField>
-        <FormField label="Годен до" required>
-          <Input type="date" value={form.expiry_at} onChange={e => setForm({ ...form, expiry_at: e.target.value })} />
-        </FormField>
-        <FormField label="Статус">
-          <Select value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
-            {statuses.map(s => <option key={s} value={s}>{s}</option>)}
-          </Select>
-        </FormField>
-        <div className="grid grid-cols-2 gap-4">
-          <FormField label="Количество">
-            <Input type="number" value={form.qty_prepared} onChange={e => setForm({ ...form, qty_prepared: e.target.value })} />
+      {/* Batch Modal */}
+      <Modal isOpen={batchModalOpen} onClose={() => setBatchModalOpen(false)} title={editingBatch ? 'Редактировать партию' : 'Новая партия'}>
+        <div className="space-y-4">
+          <FormField label="Код партии" required>
+            <Input value={batchForm.batch_code} onChange={e => setBatchForm({ ...batchForm, batch_code: e.target.value })} />
           </FormField>
-          <FormField label="Ед. изм.">
-            <Select value={form.unit} onChange={e => setForm({ ...form, unit: e.target.value })}>
-              <option value="ml">мл</option>
-              <option value="L">л</option>
+          <FormField label="Среда">
+            <Select value={batchForm.definition_id} onChange={e => setBatchForm({ ...batchForm, definition_id: e.target.value })}>
+              <option value="">-- Выберите --</option>
+              {definitions.map(d => <option key={d.id} value={d.id}>{d.code} - {d.name_ru}</option>)}
             </Select>
           </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Количество">
+              <Input type="number" value={batchForm.qty_prepared} onChange={e => setBatchForm({ ...batchForm, qty_prepared: e.target.value })} />
+            </FormField>
+            <FormField label="Ед. изм.">
+              <Select value={batchForm.unit} onChange={e => setBatchForm({ ...batchForm, unit: e.target.value })}>
+                <option value="мл">мл</option>
+                <option value="л">л</option>
+              </Select>
+            </FormField>
+          </div>
+          <FormField label="Годен до" required>
+            <Input type="date" value={batchForm.expiry_at} onChange={e => setBatchForm({ ...batchForm, expiry_at: e.target.value })} />
+          </FormField>
+          <FormField label="Статус">
+            <Select value={batchForm.status} onChange={e => setBatchForm({ ...batchForm, status: e.target.value })}>
+              {statuses.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
+            </Select>
+          </FormField>
+          <FormField label="Примечания">
+            <textarea 
+              value={batchForm.notes} 
+              onChange={e => setBatchForm({ ...batchForm, notes: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              rows={2}
+            />
+          </FormField>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="secondary" onClick={() => setBatchModalOpen(false)}>Отмена</Button>
+            <Button onClick={handleSaveBatch}>Сохранить</Button>
+          </div>
         </div>
-        <FormField label="Примечания">
-          <Input value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })} />
-        </FormField>
-        <div className="flex gap-2 justify-end mt-6">
-          <Button variant="secondary" onClick={() => setModalOpen(false)}>Отмена</Button>
-          <Button onClick={handleSave}>Сохранить</Button>
+      </Modal>
+
+      {/* Definition Modal */}
+      <Modal isOpen={defModalOpen} onClose={() => setDefModalOpen(false)} title={editingDef ? 'Редактировать среду' : 'Новая среда'}>
+        <div className="space-y-4">
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Код" required>
+              <Input value={defForm.code} onChange={e => setDefForm({ ...defForm, code: e.target.value })} placeholder="DMEM-F12" />
+            </FormField>
+            <FormField label="Название" required>
+              <Input value={defForm.name_ru} onChange={e => setDefForm({ ...defForm, name_ru: e.target.value })} placeholder="DMEM/F-12" />
+            </FormField>
+          </div>
+          <FormField label="Базовая среда">
+            <Input value={defForm.base_media} onChange={e => setDefForm({ ...defForm, base_media: e.target.value })} placeholder="DMEM" />
+          </FormField>
+          <div className="grid grid-cols-2 gap-3">
+            <FormField label="Условия хранения">
+              <Input value={defForm.storage_temp} onChange={e => setDefForm({ ...defForm, storage_temp: e.target.value })} placeholder="+2...+8°C" />
+            </FormField>
+            <FormField label="Срок годности (дней)">
+              <Input type="number" value={defForm.shelf_life_days} onChange={e => setDefForm({ ...defForm, shelf_life_days: e.target.value })} />
+            </FormField>
+          </div>
+          <FormField label="Примечания">
+            <textarea 
+              value={defForm.notes} 
+              onChange={e => setDefForm({ ...defForm, notes: e.target.value })}
+              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white"
+              rows={2}
+            />
+          </FormField>
+          <div className="flex gap-2 justify-end pt-2">
+            <Button variant="secondary" onClick={() => setDefModalOpen(false)}>Отмена</Button>
+            <Button onClick={handleSaveDef}>Сохранить</Button>
+          </div>
         </div>
       </Modal>
 
