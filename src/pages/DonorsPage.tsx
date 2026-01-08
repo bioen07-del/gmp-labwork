@@ -32,7 +32,7 @@ export function DonorsPage() {
   const load = async () => {
     setLoading(true);
     const [donorsRes, cellTypesRes] = await Promise.all([
-      supabase.from('donors').select('*, cell_type:cell_types(*)').order('id', { ascending: false }),
+      supabase.from('donors').select('*').order('id', { ascending: false }),
       supabase.from('cell_types').select('*').eq('archived', false)
     ]);
     
@@ -135,7 +135,7 @@ export function DonorsPage() {
     { 
       key: 'cell_type', 
       label: 'Тип клеток', 
-      render: (d: Donor) => d.cell_type?.name_ru || '-' 
+      render: (d: Donor) => cellTypes.find(ct => ct.id === d.cell_type_id)?.name_ru || '-' 
     },
     { 
       key: 'receipt_date', 

@@ -44,7 +44,7 @@ export function CulturesPage() {
   const load = async () => {
     setLoading(true);
     const [cultRes, donRes, typesRes, eqRes] = await Promise.all([
-      supabase.from('cultures').select('*, donor:donors(*), container_type:container_types(*), equipment:equipment!current_equipment_id(*)').order('id', { ascending: false }),
+      supabase.from('cultures').select('*').order('id', { ascending: false }),
       supabase.from('donors').select('*').eq('archived', false).order('donor_code'),
       supabase.from('container_types').select('*').eq('archived', false),
       supabase.from('equipment').select('*').eq('archived', false).eq('status', 'Активно')
@@ -160,14 +160,14 @@ export function CulturesPage() {
 
   const columns = [
     { key: 'culture_code', label: 'Код культуры' },
-    { key: 'donor', label: 'Донор', render: (c: Culture) => c.donor?.donor_code || '-' },
+    { key: 'donor', label: 'Донор', render: (c: Culture) => donors.find(d => d.id === c.donor_id)?.donor_code || '-' },
     { key: 'status', label: 'Статус', render: (c: Culture) => (
       <span className={`px-2 py-1 rounded text-xs font-medium ${statusColors[c.status] || ''}`}>{c.status}</span>
     )},
     { key: 'passage_number', label: 'Пассаж', render: (c: Culture) => `P${c.passage_number}` },
     { key: 'confluency', label: 'Конфлюент', render: (c: Culture) => c.confluency ? `${c.confluency}%` : '-' },
-    { key: 'container_type', label: 'Сосуд', render: (c: Culture) => c.container_type?.code || '-' },
-    { key: 'equipment', label: 'Оборудование', render: (c: Culture) => c.equipment?.name_ru || '-' },
+    { key: 'container_type', label: 'Сосуд', render: (c: Culture) => containerTypes.find(t => t.id === c.container_type_id)?.code || '-' },
+    { key: 'equipment', label: 'Оборудование', render: (c: Culture) => equipment.find(e => e.id === c.current_equipment_id)?.name_ru || '-' },
     { key: 'viability_percent', label: 'Жизн. %', render: (c: Culture) => c.viability_percent ? `${c.viability_percent}%` : '-' },
     { key: 'actions', label: '', render: (c: Culture) => (
       <button 
